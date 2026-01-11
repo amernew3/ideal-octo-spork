@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram & TikTok Bulk Downloader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .result-item {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .success {
+            border-left: 5px solid #28a745;
+        }
+        .error {
+            border-left: 5px solid #dc3545;
+        }
+        .hidden {
+            display: none;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #007bff;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .download-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 5px;
+        }
+        .download-btn:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Instagram & TikTok Bulk Downloader</h1>
+        <p>Upload a CSV file with Instagram and TikTok URLs to download media in bulk.</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <p>Drag & drop your CSV file here or click to browse</p>
+            <p><small>CSV should contain a column named 'url' with media URLs</small></p>
+            <input type="file" id="fileInput" accept=".csv" class="hidden">
+        </div>
+        
+        <div class="progress hidden" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <button id="processBtn" class="btn" disabled>Process URLs</button>
+        <button id="resetBtn" class="btn">Reset</button>
+        
+        <div class="results hidden" id="resultsContainer">
+            <h2>Download Results</h2>
+            <div id="resultsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const processBtn = document.getElementById('processBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsList = document.getElementById('resultsList');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        
+        let selectedFile = null;
+        
+        // Event listeners
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+        processBtn.addEventListener('click', processCSV);
+        resetBtn.addEventListener('click', resetApp);
+        
+        // Drag and drop events
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+        
+        function handleFileSelect(e) {
+            if (e.target.files.length) {
+                handleFiles(e.target.files);
+            }
+        }
+        
+        function handleFiles(files) {
+            const file = files[0];
+            if (file && file.name.endsWith('.csv')) {
+                selectedFile = file;
+                uploadArea.innerHTML = `<p>Selected file: ${file.name}</p><p><small>Click Process URLs to begin</small></p>`;
+                processBtn.disabled = false;
+            } else {
+                alert('Please select a valid CSV file.');
+                resetApp();
+            }
+        }
+        
+        async function processCSV() {
+            if (!selectedFile) return;
+            
+            processBtn.disabled = true;
+            progressContainer.classList.remove('hidden');
+            
+            const formData = new FormData();
+            formData.append('csvFile', selectedFile);
+            
+            try {
+                const response = await fetch('/process-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result.results);
+                } else {
+                    alert('Error processing CSV: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                progressContainer.classList.add('hidden');
+            }
+        }
+        
+        function displayResults(results) {
+            resultsList.innerHTML = '';
+            
+            results.forEach((item, index) => {
+                const resultItem = document.createElement('div');
+                resultItem.className = `result-item ${item.status}`;
+                
+                if (item.status === 'success') {
+                    resultItem.innerHTML = `
+                        <h3>Success: ${item.url}</h3>
+                        <p>Media processed successfully!</p>
+                        ${renderDownloadOptions(item.data)}
+                    `;
+                } else {
+                    resultItem.innerHTML = `
+                        <h3>Error: ${item.url}</h3>
+                        <p>${item.message}</p>
+                    `;
+                }
+                
+                resultsList.appendChild(resultItem);
+                
+                // Update progress bar
+                const progress = ((index + 1) / results.length) * 100;
+                progressBar.style.width = `${progress}%`;
+            });
+            
+            resultsContainer.classList.remove('hidden');
+        }
+        
+        function renderDownloadOptions(data) {
+            if (!data || !data.length) return '<p>No download options available</p>';
+            
+            let html = '<div>';
+            data.forEach((item, index) => {
+                if (item.url) {
+                    html += `<a href="${item.url}" class="download-btn" target="_blank">Download Media ${index + 1}</a>`;
+                }
+            });
+            html += '</div>';
+            
+            return html;
+        }
+        
+        function resetApp() {
+            selectedFile = null;
+            fileInput.value = '';
+            processBtn.disabled = true;
+            resultsContainer.classList.add('hidden');
+            progressContainer.classList.add('hidden');
+            uploadArea.innerHTML = `
+                <p>Drag & drop your CSV file here or click to browse</p>
+                <p><small>CSV should contain a column named 'url' with media URLs</small></p>
+                <input type="file" id="fileInput" accept=".csv" class="hidden">
+            `;
+        }
+    </script>
+</body>
+</html>
